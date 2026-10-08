@@ -1,0 +1,38 @@
+name: relay
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # GitHub's minimum; real runs are often a few minutes late
+  workflow_dispatch:
+
+concurrency:
+  group: relay  # never run two at once (would double-post)
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Relay new Discord posts to Telegram
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_HQ_GROUP_ID: ${{ secrets.TELEGRAM_HQ_GROUP_ID }}
+          TELEGRAM_MENTORSHIP_GROUP_ID: ${{ secrets.TELEGRAM_MENTORSHIP_GROUP_ID }}
+          TELEGRAM_TOPICS: ${{ secrets.TELEGRAM_TOPICS }}
+        run: python3 relay.py
+      - name: Save progress
+        if: always()
+        run: |
+          git diff --quiet relay_state.json && exit 0
+          git config user.name "relay-bot"
+          git config user.email "relay-bot@users.noreply.github.com"
+          git commit -am "relay: update state"
+          git push
